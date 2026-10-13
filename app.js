@@ -1,7 +1,8 @@
 async function api(url, options = {}) {
   const res = await fetch(url, options);
   if (!res.ok) {
-    throw new Error(`Terjadi kesalahan pada server: ${res.status}`);
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.message || `Terjadi kesalahan pada server: ${res.status}`);
   }
   return res.json();
 }
@@ -15,25 +16,59 @@ let state = {
 };
 
 async function muatData() {
-  try {
+    state.loading = true;
+    state.error = null;
+    renderApp();
+
+    try {
     const dataTugas = await api("/api/tugas");
-    console.log("Data tugas berhasil dimuat:", dataTugas);
-    
-    const tbody = document.getElementById("list-tugas");
-    tbody.innerHTML = "";
-    dataTugas.forEach((t, index) => {
-      tbody.innerHTML += `
-        <tr>
-          <td>${index + 1}</td>
-          <td>${t.judul}</td>
-          <td>${t.matkulId}</td>
-          <td>${t.deadline}</td>
-          <td>${t.status || 'Not Started'}</td>
-        </tr>
-      `;
-    });
+    state.tugas = dataTugas;
   } catch (err) {
-    console.error("Gagal memuat data:", err.message);
+    state.error = err.message; 
+  } finally {
+    state.loading = false;
+    renderApp(); 
+  }
+}
+
+async function tambahTugas(e) {
+  e.preventDefault();
+  const form = e.target;
+  const inputJudul = form.querySelector("#judul");
+  const selectMatkul = form.querySelector("#matkul");
+  const inputDeadline = form.querySelector("#deadline");
+  const btnSubmit = form.querySelector("button[type='submit']");
+
+  if (inputJudul.value.trim().length < 3) {
+    alert("Judul tugas minimal 3 karakter!");
+    return;
+  }
+
+  const payload = {
+    judul: inputJudul.value.trim(),
+    matkulId: selectMatkul.value,
+    deadline: inputDeadline.value,
+    status: "Not Started"
+  };
+
+  try {
+    btnSubmit.disabled = true;
+    btnSubmit.textContent = "Mengirim...";
+
+    const tugasBaru = await api("/api/tugas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    state.tugas.push(tugasBaru);
+    form.reset();
+    renderApp();
+  } catch (err) {
+    alert(`Gagal menambah tugas: ${err.message}`);
+  } finally {
+    btnSubmit.disabled = false;
+    btnSubmit.textContent = "Tambah Tugas";
   }
 }
 
@@ -75,22 +110,7 @@ function renderApp() {
   });
 }
 
-async function muatData() {
-  state.loading = true;
-  state.error = null;
-  renderApp(); 
-
-  try {
-    const dataTugas = await api("/api/tugas");
-    state.tugas = dataTugas;
-  } catch (err) {
-    state.error = err.message; 
-  } finally {
-    state.loading = false;
-    renderApp(); 
-  }
-}
-
 document.addEventListener("DOMContentLoaded", () => {
   muatData();
+  document.getElementById("form-tugas").addEventListener("submit", tambahTugas);
 });
