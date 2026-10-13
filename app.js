@@ -72,6 +72,44 @@ async function tambahTugas(e) {
   }
 }
 
+async function handleAksiTugas(e) {
+  const target = e.target;
+  const tr = target.closest("tr[data-id]");
+  if (!tr) return;
+  const id = tr.dataset.id;
+  const tugasItem = state.tugas.find(t => t.id == id);
+  if (!tugasItem) return;
+
+  if (target.classList.contains("btn-hapus")) {
+    try {
+      await api(`/api/tugas/${id}`, { method: "DELETE" });
+      state.tugas = state.tugas.filter(t => t.id != id);
+      renderApp();
+    } catch (err) {
+      alert(`Gagal menghapus: ${err.message}`);
+    }
+  }
+
+  if (target.classList.contains("status-pill")) {
+    const statusCycle = ["Not Started", "In Progress", "Done"];
+    let currentIndex = statusCycle.indexOf(tugasItem.status || "Not Started");
+    let nextStatus = statusCycle[(currentIndex + 1) % statusCycle.length];
+
+    try {
+      const updated = await api(`/api/tugas/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus, selesai: nextStatus === "Done" })
+      });
+      
+      Object.assign(tugasItem, updated);
+      renderApp();
+    } catch (err) {
+      alert(`Gagal memperbarui status: ${err.message}`);
+    }
+  }
+}
+
 function renderApp() {
   const tbody = document.getElementById("list-tugas");
   const statsCounter = document.getElementById("stats-counter");
@@ -97,20 +135,27 @@ function renderApp() {
 
   tbody.innerHTML = "";
   state.tugas.forEach((t, index) => {
-    tbody.innerHTML += `
-      <tr>
-        <td>${index + 1}</td>
-        <td><strong>${t.judul}</strong></td>
-        <td>${t.matkulId}</td>
-        <td>${t.deadline || "-"}</td>
-        <td>${t.status || 'Not Started'}</td>
-        <td>-</td>
-      </tr>
+    const status = t.status || "Not Started";
+    let statusClass = "not-started";
+    if (status === "In Progress") statusClass = "in-progress";
+    if (status === "Done") statusClass = "done";
+
+    const tr = document.createElement("tr");
+    tr.setAttribute("data-id", t.id);
+    tr.innerHTML = `
+      <td>${index + 1}</td>
+      <td><strong>${t.judul}</strong></td>
+      <td>${t.matkulId}</td>
+      <td>${t.deadline || "-"}</td>
+      <td><button class="status-pill ${statusClass}" title="Klik untuk ubah status">${status}</button></td>
+      <td><button class="btn-hapus">Hapus</button></td>
     `;
+    tbody.appendChild(tr);
   });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   muatData();
   document.getElementById("form-tugas").addEventListener("submit", tambahTugas);
+  document.getElementById("list-tugas").addEventListener("click", handleAksiTugas);
 });
