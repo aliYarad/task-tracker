@@ -1,3 +1,67 @@
+let mockDatabase = {
+  tugas: [
+    { id: 1, judul: "Membuat Layout Responsive", matkulId: 1, deadline: "2026-10-20", status: "In Progress" },
+    { id: 2, judul: "Menyusun Laporan Praktikum", matkulId: 2, deadline: "2026-10-25", status: "Not Started" }
+  ],
+  matkul: [
+    { id: 1, nama: "Pemrograman Web" },
+    { id: 2, nama: "Interaksi Manusia & Komputer" },
+    { id: 3, nama: "Struktur Data" }
+  ]
+};
+
+const originalFetch = window.fetch;
+window.fetch = async function(url, options = {}) {
+  await new Promise(resolve => setTimeout(resolve, 300));
+
+  if (window._API_MODE === "offline") {
+    throw new Error("Gagal terhubung ke jaringan (Offline Mode)");
+  }
+
+  const { method = "GET", body } = options;
+
+  if (url === "/api/matkul" && method === "GET") {
+    return new Response(JSON.stringify(mockDatabase.matkul), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+
+  if (url === "/api/tugas" && method === "GET") {
+    return new Response(JSON.stringify(mockDatabase.tugas), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+
+  if (url === "/api/tugas" && method === "POST") {
+    const data = JSON.parse(body);
+    if (!data.judul || data.judul.trim().length < 3) {
+      return new Response(JSON.stringify({ message: "Judul tugas minimal 3 karakter!" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
+    const newItem = { id: Date.now(), ...data };
+    mockDatabase.tugas.push(newItem);
+    return new Response(JSON.stringify(newItem), { status: 201, headers: { "Content-Type": "application/json" } });
+  }
+
+  if (url.startsWith("/api/tugas/") && method === "DELETE") {
+    const id = url.split("/").pop();
+    mockDatabase.tugas = mockDatabase.tugas.filter(t => t.id != id);
+    return new Response(null, { status: 204 });
+  }
+
+  if (url.startsWith("/api/tugas/") && method === "PATCH") {
+    const id = url.split("/").pop();
+    const data = JSON.parse(body);
+    const item = mockDatabase.tugas.find(t => t.id == id);
+    if (item) {
+      Object.assign(item, data);
+      return new Response(JSON.stringify(item), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response(JSON.stringify({ message: "Tugas tidak ditemukan" }), { status: 404, headers: { "Content-Type": "application/json" } });
+  }
+
+  return originalFetch(url, options);
+};
+
+window._API = {
+  setMode: (mode) => { window._API_MODE = mode; console.log(`API Mode diubah ke: ${mode}`); }
+};
+
 async function api(url, options = {}) {
   const res = await fetch(url, options);
   if (!res.ok) {
@@ -16,13 +80,26 @@ let state = {
 };
 
 async function muatData() {
-    state.loading = true;
-    state.error = null;
-    renderApp();
+  state.loading = true;
+  state.error = null;
+  renderApp(); 
 
-    try {
-    const dataTugas = await api("/api/tugas");
+  try {
+    const [dataTugas, dataMatkul] = await Promise.all([
+      api("/api/tugas"),
+      api("/api/matkul")
+    ]);
+    
     state.tugas = dataTugas;
+    state.matkul = dataMatkul;
+
+    const selectMatkul = document.getElementById("matkul");
+    if (selectMatkul) {
+      selectMatkul.innerHTML = '<option value="" disabled selected>Pilih mata kuliah</option>';
+      dataMatkul.forEach(m => {
+        selectMatkul.innerHTML += `<option value="${m.id}">${m.nama}</option>`;
+      });
+    }
   } catch (err) {
     state.error = err.message; 
   } finally {
@@ -113,6 +190,7 @@ async function handleAksiTugas(e) {
 function renderApp() {
   const tbody = document.getElementById("list-tugas");
   const statsCounter = document.getElementById("stats-counter");
+  if (!tbody) return;
 
   if (state.loading) {
     tbody.innerHTML = `<tr><td colspan="6" class="skeleton">Memuat data dari server...</td></tr>`;
@@ -121,31 +199,46 @@ function renderApp() {
   }
 
   if (state.error) {
-    tbody.innerHTML = `<tr><td colspan="6" class="skeleton" style="color: #ffcccc;">Error: ${state.error} <button onclick="muatData()" style="margin-left:10px; padding:2px 8px;">Coba Lagi</button></td></tr>`;
-    statsCounter.textContent = "Gagal memuat";
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="skeleton" style="color: #ffcccc;">
+          Error: ${state.error} 
+          <button onclick="muatData()" style="margin-left:10px; padding:2px 8px; cursor:pointer;">Coba Lagi</button>
+        </td>
+      </tr>`;
+    if (statsCounter) statsCounter.textContent = "Gagal memuat";
     return;
   }
 
-  statsCounter.textContent = `${state.tugas.length} tugas`;
+  const filteredTugas = state.tugas.filter(t => {
+    const status = t.status || "Not Started";
+    if (state.filter === "Semua") return true;
+    return status === state.filter;
+  });
 
-  if (state.tugas.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="skeleton">Belum ada tugas yang ditambahkan.</td></tr>`;
+  if (statsCounter) statsCounter.textContent = `${filteredTugas.length} tugas`;
+
+  if (filteredTugas.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="skeleton">Tidak ada tugas dalam kategori ini.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = "";
-  state.tugas.forEach((t, index) => {
+  filteredTugas.forEach((t, index) => {
     const status = t.status || "Not Started";
     let statusClass = "not-started";
     if (status === "In Progress") statusClass = "in-progress";
     if (status === "Done") statusClass = "done";
+
+    const matkulObj = state.matkul.find(m => m.id == t.matkulId);
+    const namaMatkul = matkulObj ? matkulObj.nama : "-";
 
     const tr = document.createElement("tr");
     tr.setAttribute("data-id", t.id);
     tr.innerHTML = `
       <td>${index + 1}</td>
       <td><strong>${t.judul}</strong></td>
-      <td>${t.matkulId}</td>
+      <td>${namaMatkul}</td>
       <td>${t.deadline || "-"}</td>
       <td><button class="status-pill ${statusClass}" title="Klik untuk ubah status">${status}</button></td>
       <td><button class="btn-hapus">Hapus</button></td>
@@ -154,8 +247,20 @@ function renderApp() {
   });
 }
 
+document.querySelectorAll(".btn-filter").forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    document.querySelectorAll(".btn-filter").forEach(b => b.classList.remove("active"));
+    e.target.classList.add("active");
+    state.filter = e.target.dataset.filter;
+    renderApp();
+  });
+});
+
 document.addEventListener("DOMContentLoaded", () => {
   muatData();
-  document.getElementById("form-tugas").addEventListener("submit", tambahTugas);
-  document.getElementById("list-tugas").addEventListener("click", handleAksiTugas);
+  const formTugas = document.getElementById("form-tugas");
+  if (formTugas) formTugas.addEventListener("submit", tambahTugas);
+  
+  const listTugas = document.getElementById("list-tugas");
+  if (listTugas) listTugas.addEventListener("click", handleAksiTugas);
 });
