@@ -3,57 +3,70 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Task Tracker Kuliah v2</title>
+  <title>Task Tracker Kuliah</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="container">
     <header>
       <h1>📋 Task Tracker Kuliah</h1>
-      <p class="subtitle">Kelola tugas kuliahmu dengan mudah.</p>
     </header>
 
     <form id="form-tugas" class="card form-card">
-    <div class="form-group">
+      <div class="form-group">
         <label for="judul">Judul Tugas</label>
         <input type="text" id="judul" placeholder="Judul tugas (min. 3 karakter)" required minlength="3">
-    </div>
+      </div>
 
-    <div class="form-row">
+      <div class="form-row">
         <div class="form-group">
-        <label for="matkul">Mata Kuliah</label>
-        <select id="matkul" required>
+          <label for="matkul">Mata Kuliah</label>
+          <select id="matkul" required>
             <option value="" disabled selected>Pilih mata kuliah</option>
-            <option value="1">Pemrograman Web</option>
-            <option value="2">Interaksi Manusia & Komputer</option>
-            <option value="3">Struktur Data</option>
-        </select>
+          </select>
         </div>
 
         <div class="form-group">
-        <label for="deadline">Deadline</label>
-        <input type="date" id="deadline" required>
+          <label for="deadline">Deadline</label>
+          <input type="date" id="deadline" required>
         </div>
-    </div>
+      </div>
 
-    <button type="submit" class="btn-primary">Tambah Tugas</button>
+      <button type="submit" class="btn-primary">Tambah Tugas</button>
     </form>
 
+    <div class="controls-bar">
+      <div class="filter-group">
+        <button class="btn-filter active" data-filter="Semua">Semua</button>
+        <button class="btn-filter" data-filter="Not Started">Not Started</button>
+        <button class="btn-filter" data-filter="In Progress">In Progress</button>
+        <button class="btn-filter" data-filter="Done">Done</button>
+      </div>
+      <div class="stats" id="stats-counter">0 tugas</div>
+    </div>
+
     <section class="task-section card">
-      <table class="task-table">
-        <thead>
-          <tr>
-            <th>No</th>
-            <th>Judul Tugas</th>
-            <th>Mata Kuliah</th>
-            <th>Deadline</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="list-tugas">
-          <tr><td colspan="5">Memuat data...</td></tr>
-        </tbody>
-      </table>
+      <div class="table-responsive">
+        <table class="task-table">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Judul Tugas</th>
+              <th>Mata Kuliah</th>
+              <th>Deadline</th>
+              <th>Status</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="list-tugas">
+            <tr><td colspan="6" class="skeleton">Memuat data dari server...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
   </div>
 
